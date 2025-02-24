@@ -9,22 +9,25 @@ import (
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 const infuraURL = "https://mainnet.infura.io/v3/c543932173e54a3fbbe7ce8e4d0c1e78"
 
-// EthereumClient wraps an ethclient.Client
-type EthereumClient struct {
-	client *ethclient.Client
+// EthereumClientInterface defines the methods that our EthereumClient should implement
+type EthereumClientInterface interface {
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	BalanceAt(ctx context.Context, account common.Address, number *big.Int) (*big.Int, error)
 }
 
-func NewEthereumClient() (*EthereumClient, error) {
-	client, err := ethclient.Dial(infuraURL)
-	if err != nil {
-		return nil, err
-	}
-	return &EthereumClient{client: client}, nil
+// EthereumClient wraps an ethclient.Client
+type EthereumClient struct {
+	client EthereumClientInterface
+}
+
+func NewEthereumClient(client EthereumClientInterface) *EthereumClient {
+	return &EthereumClient{client: client}
 }
 
 func (ec *EthereumClient) getLatestBlockNumber() (*big.Int, error) {
@@ -45,13 +48,15 @@ func (ec *EthereumClient) getBalance(address string) (*big.Int, error) {
 }
 
 func main() {
-	client, err := NewEthereumClient()
+	client, err := ethclient.Dial(infuraURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to Ethereum: %v", err)
 	}
 
+	ethClient := NewEthereumClient(client)
+
 	http.HandleFunc("/latest-block", func(w http.ResponseWriter, r *http.Request) {
-		blockNumber, err := client.getLatestBlockNumber()
+		blockNumber, err := ethClient.getLatestBlockNumber()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -65,7 +70,7 @@ func main() {
 			http.Error(w, "Address is required", http.StatusBadRequest)
 			return
 		}
-		balance, err := client.getBalance(address)
+		balance, err := ethClient.getBalance(address)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
