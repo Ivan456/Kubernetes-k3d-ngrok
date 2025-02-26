@@ -1,9 +1,11 @@
 module eth_service
 
-go 1.22.0
+go 1.23.0
+
+toolchain go1.23.6
 
 require (
-	github.com/ethereum/go-ethereum v1.15.2
+	github.com/ethereum/go-ethereum v1.15.3
 	github.com/stretchr/testify v1.10.0
 )
 
