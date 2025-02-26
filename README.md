@@ -1,22 +1,28 @@
-To set up a CI/CD pipeline for your Go-based blockchain application that automates testing, building, and deploying to a local Kubernetes cluster using Helm, follow the steps below. This guide assumes you have a self-hosted GitHub Actions runner configured on your local machine, as previously discussed.
+# CI/CD Pipeline for Go-Based Blockchain Application
 
-**1. Dockerize the Go Application**
+This guide will walk you through setting up a **CI/CD pipeline** for your **Go-based blockchain application** that automates **testing, building, and deploying** to a local Kubernetes cluster using **Helm**.
 
-Begin by creating a `Dockerfile` to containerize your Go application. This will enable consistent deployment across environments.
+## Prerequisites
+Before proceeding, ensure you have the following installed:
+- **Docker**
+- **Kubernetes (k3d recommended for local clusters)**
+- **Helm**
+- **GitHub Actions self-hosted runner** (configured on your local machine)
 
-**`Dockerfile`**:
+## 1. Dockerize the Go Application
+
+Create a `Dockerfile` to containerize your Go application:
 
 ```dockerfile
 # Use the official Golang image as the base image
 FROM golang:1.20-alpine AS builder
 
-# Set the Current Working Directory inside the container
 WORKDIR /app
 
 # Copy go mod and sum files
 COPY go.mod go.sum ./
 
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+# Download dependencies
 RUN go mod download
 
 # Copy the source code into the container
@@ -28,47 +34,34 @@ RUN go build -o main .
 # Start a new stage from scratch
 FROM alpine:latest
 
-# Set the Current Working Directory inside the container
 WORKDIR /root/
 
-# Copy the Pre-built binary file from the previous stage
+# Copy the pre-built binary from the builder stage
 COPY --from=builder /app/main .
 
-# Expose port 8080 to the outside world
+# Expose port 8080
 EXPOSE 8080
 
-# Command to run the executable
 CMD ["./main"]
 ```
 
+This multi-stage `Dockerfile` ensures a minimal final image size.
 
-This `Dockerfile` uses a multi-stage build to create a lightweight Docker image for your Go application.
-
-**2. Create a Helm Chart**
-
-Helm helps in managing Kubernetes applications. Create a Helm chart to define, install, and upgrade your Kubernetes application.
-
-Generate a new Helm chart:
-
+## 2. Create a Helm Chart
+Helm simplifies Kubernetes deployments. Run the following command to create a Helm chart:
 
 ```bash
 helm create blockchain-app
 ```
 
+This command generates a directory named `blockchain-app` with a predefined structure. Customize the following files:
 
-This command creates a directory named `blockchain-app` with a predefined structure. Customize the following files to suit your application:
+- **`values.yaml`**: Define the image repository and tag.
+- **`templates/deployment.yaml`**: Configure Kubernetes deployments.
+- **`templates/service.yaml`**: Define service exposure.
 
-- **`values.yaml`**: Define default configurations, such as the Docker image repository and tag.
-
-- **`templates/deployment.yaml`**: Specify the Kubernetes deployment configuration, including container ports and environment variables.
-
-- **`templates/service.yaml`**: Define the service that exposes your application.
-
-**3. Configure GitHub Actions Workflow**
-
-Set up a GitHub Actions workflow to automate testing, building, and deploying your application. Place the workflow file in `.github/workflows/ci-cd.yml` in your repository.
-
-**`ci-cd.yml`**:
+## 3. Configure GitHub Actions Workflow
+Create a GitHub Actions workflow to automate testing, building, and deployment. Place the workflow file in `.github/workflows/ci-cd.yml`.
 
 ```yaml
 name: CI/CD Pipeline
@@ -128,29 +121,36 @@ jobs:
             --set image.tag=latest
 ```
 
+### Key Workflow Steps:
+- **Checkout Code**: Retrieves the latest repository code.
+- **Set up Go**: Installs Go version 1.20.
+- **Run Unit Tests**: Ensures code quality.
+- **Set up Docker Buildx**: Enables multi-platform image building.
+- **Authenticate to GitHub Container Registry**: Pushes the built Docker image.
+- **Deploy using Helm**: Upgrades or installs the Kubernetes deployment.
 
-**Key Steps Explained**:
+## 4. Deploying to a Local k3d Cluster
 
-- **Checkout Code**: Retrieves the latest code from the repository.
+Your blockchain application is deployed to a local **k3d** Kubernetes cluster. To access the application:
 
-- **Set up Go**: Installs the specified Go version.
+1. **Verify the running services**:
+   ```bash
+   kubectl get services
+   ```
+2. **Expose the service using port-forwarding**:
+   ```bash
+   kubectl port-forward svc/blockchain-app 8080:80
+   ```
+   Now, your application will be accessible at `http://localhost:8080`.
 
-- **Run Unit Tests**: Executes your Go unit tests to ensure code quality.
+3. **Expose the service for external access using Ngrok**:
+   ```bash
+   ngrok http 8080
+   ```
+   This will provide a public URL to access your application.
 
-- **Set up Docker Buildx**: Prepares Docker Buildx for building multi-platform images.
-
-- **Log in to GitHub Container Registry**: Authenticates to GitHub's container registry to push the Docker image.
-
-- **Build and Push Docker Image**: Builds the Docker image and pushes it to the GitHub Container Registry.
-
-- **Set up kubectl and Helm**: Installs `kubectl` and Helm for Kubernetes deployments.
-
-- **Deploy to Kubernetes**: Uses Helm to deploy or upgrade the application in your local Kubernetes cluster.
-
-**4. Ensure Kubernetes Can Pull Images from GitHub Container Registry**
-
-Since your Kubernetes cluster needs access to the Docker images stored in the GitHub Container Registry, create a Kubernetes secret with your registry credentials:
-
+## 5. Grant Kubernetes Access to GitHub Container Registry
+Since Kubernetes needs access to private images, create a Kubernetes secret:
 
 ```bash
 kubectl create secret docker-registry ghcr-secret \
@@ -160,20 +160,29 @@ kubectl create secret docker-registry ghcr-secret \
   --docker-email=<your-email>
 ```
 
-
-Replace `<your-github-username>`, `<your-personal-access-token>`, and `<your-email>` with your GitHub username, a personal access token with appropriate permissions, and your email address, respectively.
-
-Update your Helm chart's `values.yaml` or `deployment.yaml` to use this secret for pulling images:
-
+Then, update your **`values.yaml`** to use this secret:
 
 ```yaml
 imagePullSecrets:
   - name: ghcr-secret
 ```
 
+## 6. Self-Hosted GitHub Runner Setup
+Your **GitHub Actions self-hosted runner** is configured on your local machine to interact with the `k3d` cluster. Ensure your runner has the following dependencies installed:
+- **Docker**
+- **kubectl**
+- **Helm**
 
-**5. Security Considerations**
+To start the runner:
+```bash
+./run.sh
+```
 
-Running a self-hosted runner grants GitHub Actions workflows access to your local environment. Ensure that only trusted workflows are permitted to run, and regularly monitor and update your runner for security patches.
+## 7. Security Considerations
+- **Self-hosted runners** provide access to your local environment—restrict their usage to trusted workflows.
+- **Use a GitHub PAT** with minimal required permissions.
+- **Regularly update dependencies** to avoid vulnerabilities.
 
-By following these steps, you can establish 
+---
+By following this guide, you will have a robust CI/CD pipeline for your **Go-based blockchain application**, ensuring automated **testing, building, and deployment** to a Kubernetes cluster. 🚀
+
