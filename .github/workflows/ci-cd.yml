@@ -5,8 +5,8 @@ on:
     branches:
       - main
 
-permissions:
-  packages: write
+# permissions:
+#   packages: write
 
 jobs:
   build-and-deploy:
