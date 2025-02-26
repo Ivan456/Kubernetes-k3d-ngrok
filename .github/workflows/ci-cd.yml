@@ -32,10 +32,6 @@ jobs:
         env:
           IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/k8s:latest
         run: |
-          # Convert IMAGE_NAME to lowercase
-          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
-          echo "Lowercase image name: $IMAGE_NAME_LOWER"
-
           # Build and push the Docker image
           docker buildx build --push --tag "$IMAGE_NAME_LOWER" .
 
@@ -46,9 +42,6 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          # Convert IMAGE_NAME to lowercase
-          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
-
           helm upgrade --install blockchain-app ./blockchain-app \
-            --set image.repository="$IMAGE_NAME_LOWER" \
+            --set image.repository="$IMAGE_NAME" \
             --set image.tag=latest
